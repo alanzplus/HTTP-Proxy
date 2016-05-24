@@ -34,8 +34,7 @@ public class ConnectionListener extends Thread {
           .configureBlocking(false);
       channel.register(serverSocketSelector, SelectionKey.OP_ACCEPT, new Handler());
       while (true) {
-        LOGGER.info("listen on port <{}> waiting for client connection...",
-                    systemContext.getPort());
+        LOGGER.info("listen on port {}, waiting for client connection...", systemContext.getPort());
         int selected = serverSocketSelector.select();
         if (0 == selected) {
           continue;

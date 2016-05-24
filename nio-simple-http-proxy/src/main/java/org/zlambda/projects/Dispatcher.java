@@ -22,6 +22,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Dispatcher extends Thread {
+  /**
+   * For development debug usage
+   */
   private static final Logger LOGGER = Common.getSystemLogger();
   private final SystemContext systemContext;
   // for synchronize the contextSet update when worker thread exit
@@ -87,17 +90,18 @@ public class Dispatcher extends Thread {
           try {
             synchronized (targetWorkerContext.getWakeupBarrier()) {
               targetWorkerContext.getSelector().wakeup();
-              ShareContext shareContext = new ShareContext(new ProxyConnectionBuffer());
+              ShareContext shareContext = new ShareContext(
+                  new ProxyConnectionBuffer(systemContext.getChannelBufferSize()));
               ClientSocketChannelHandler handler = new ClientSocketChannelHandler(shareContext);
-              SelectionKey key = client.register(targetWorkerContext.getSelector(),
-                                                 SelectionKey.OP_READ | SelectionKey.OP_WRITE,
-                                                 handler);
-
+              SelectionKey key = client.register(
+                  targetWorkerContext.getSelector(), SelectionKey.OP_READ, handler);
+              SelectionKeyContext.ChannelState channelState =
+                  new SelectionKeyContext.ChannelState().setConnectState(true);
               shareContext.setClientKey(
                   key,
-                  new SelectionKeyContext.Builder(key).name(
-                      SocketChannelUtils.getRemoteAddress(client).toString()).channelState(
-                      new SelectionKeyContext.ChannelState(true)).build()
+                  new SelectionKeyContext.Builder(key)
+                      .name(SocketChannelUtils.getRemoteAddress(client).toString())
+                      .channelState(channelState).build()
               );
             }
           } catch (ClosedChannelException e) {

@@ -11,17 +11,22 @@ import java.nio.channels.SocketChannel;
 public class SelectionKeyContext {
   private static final Logger LOGGER = Common.getSystemLogger();
 
-
   public static class ChannelState {
     boolean isISClosed = false;
     boolean isOSClosed = false;
     boolean isConnected = false;
 
-    public ChannelState(boolean isConnected) {
+    public ChannelState() {
+      setConnectState(false);
+    }
+
+    public ChannelState setConnectState(boolean isConnected) {
       this.isConnected = isConnected;
+      this.isISClosed = !isConnected;
+      this.isOSClosed = !isConnected;
+      return this;
     }
   }
-
 
   private final String name;
   private final ChannelState channelState;
@@ -31,6 +36,10 @@ public class SelectionKeyContext {
     this.name = builder.name;
     this.channelState = builder.channelState;
     this.key = builder.key;
+  }
+
+  public SelectionKey getKey() {
+    return key;
   }
 
   public String getName() {
@@ -54,7 +63,7 @@ public class SelectionKeyContext {
   }
 
   public void setConnectState(boolean isConnected) {
-    channelState.isConnected = isConnected;
+    channelState.setConnectState(isConnected);
   }
 
   public void closeIS() {
@@ -65,6 +74,7 @@ public class SelectionKeyContext {
     try {
       socketChannel.shutdownInput();
       SelectionKeyUtils.removeInterestOps(key, SelectionKey.OP_READ);
+      channelState.isISClosed = true;
     } catch (IOException e) {
       LOGGER.error("failed to shutdown input of socket channel <{}>", name, e);
     }
@@ -78,6 +88,7 @@ public class SelectionKeyContext {
     try {
       socketChannel.shutdownOutput();
       SelectionKeyUtils.removeInterestOps(key, SelectionKey.OP_WRITE);
+      channelState.isOSClosed = true;
     } catch (IOException e) {
       LOGGER.error("failed to shutdown output of socket channel <{}>", name, e);
     }
@@ -89,6 +100,7 @@ public class SelectionKeyContext {
     try {
       SocketChannel socketChannel = SelectionKeyUtils.getSocketChannel(key);
       socketChannel.close();
+      LOGGER.debug("close socket channel <{}>.", name);
     } catch (IOException e) {
       LOGGER.error("failed to close socket channel <{}>", name, e);
     }

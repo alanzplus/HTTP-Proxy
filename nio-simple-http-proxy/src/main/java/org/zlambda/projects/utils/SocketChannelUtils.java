@@ -24,7 +24,7 @@ public enum SocketChannelUtils {
       return numOfRead;
     } catch (IOException e) {
       if ("Connection reset by peer".equals(e.getMessage())) {
-        LOGGER.warn("Failed to read from <{}>, reason <{}>.", getRemoteAddress(channel),
+        LOGGER.debug("Failed to read from <{}>, reason <{}>.", getRemoteAddress(channel),
                     e.getMessage());
       } else {
         LOGGER.error("Failed to read from <{}>.", getRemoteAddress(channel), e);
@@ -38,7 +38,7 @@ public enum SocketChannelUtils {
       return buffer.write(channel);
     } catch (IOException e) {
       if ("Broken pipe".equals(e.getMessage())) {
-        LOGGER.warn("Failed to write to <{}>, reason <{}>.", getRemoteAddress(channel),
+        LOGGER.debug("Failed to write to <{}>, reason <{}>.", getRemoteAddress(channel),
                     e.getMessage());
       } else {
         LOGGER.error("Failed to write to <{}>.", channel.toString(), e);

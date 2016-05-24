@@ -6,7 +6,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 public class SimpleChannelBuffer implements ChannelBuffer {
-  private ByteBuffer internal = ByteBuffer.allocate(10 * 1024); // 10K
+  private static final int KB = 1024;
+  private final ByteBuffer internal;
+
+  public SimpleChannelBuffer(int size) {
+    this.internal = ByteBuffer.allocate(size * KB);
+  }
 
   /**
    * Invariant:

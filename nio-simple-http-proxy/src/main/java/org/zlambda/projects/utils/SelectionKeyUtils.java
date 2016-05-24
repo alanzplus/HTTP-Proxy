@@ -1,5 +1,7 @@
 package org.zlambda.projects.utils;
 
+import org.slf4j.Logger;
+
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -7,6 +9,7 @@ import java.nio.channels.SocketChannel;
 
 public enum SelectionKeyUtils {
   ;
+  private static final Logger LOGGER = Common.getSystemLogger();
 
   public static SocketChannel getSocketChannel(SelectionKey key) {
     return getChannel(key);
@@ -25,12 +28,18 @@ public enum SelectionKeyUtils {
   }
 
   public static int removeInterestOps(SelectionKey key, int ops) {
+    if (!key.isValid()) {
+      return -1;
+    }
     int newOps = key.interestOps() & ~ops;
     key.interestOps(newOps);
     return newOps;
   }
 
   public static int addInterestOps(SelectionKey key, int ops) {
+    if (!key.isValid()) {
+      return -1;
+    }
     int newOps = key.interestOps() | ops;
     key.interestOps(newOps);
     return newOps;

@@ -1,6 +1,7 @@
 package org.zlambda.projects;
 
 import org.slf4j.Logger;
+import org.zlambda.projects.buffer.ChannelBuffer;
 import org.zlambda.projects.context.SelectionKeyContext;
 import org.zlambda.projects.context.ShareContext;
 import org.zlambda.projects.utils.Common;
@@ -23,74 +24,81 @@ public class HostSocketChannelHandler implements EventHandler {
 
   @Override
   public void execute(SelectionKey selectionKey) {
-    state = state.perform(context, selectionKey);
-    SelectionKeyContext hostKeyContext = context.getHostKeyContext();
-    if (hostKeyContext.isIOClosed()) {
-      hostKeyContext.closeIO();
+    state = state.perform(context);
+    postAction();
+  }
+
+  /**
+   * TODO: refactor
+   */
+  private void postAction() {
+    cleanKeyContext(context.getClientKeyContext());
+    cleanKeyContext(context.getHostKeyContext());
+  }
+
+  private void cleanKeyContext(SelectionKeyContext keyContext) {
+    if (null == keyContext) {
+      return;
+    }
+    if (keyContext.isConnected() && keyContext.isIOClosed()) {
+      keyContext.closeIO();
     }
   }
 
-  private interface HandlerStateAction {
-    HandlerState perform(ShareContext context, SelectionKey key);
-  }
-
-
-  private enum HandlerState implements HandlerStateAction {
+  private enum HandlerState {
     WAIT_FOR_CONNECTION {
       @Override
-      public HandlerState perform(ShareContext context, SelectionKey key) {
-        if (!key.isConnectable()) {
-          return WAIT_FOR_CONNECTION;
-        }
+      public HandlerState perform(ShareContext context) {
         SelectionKeyContext hostKeyContext = context.getHostKeyContext();
         SelectionKeyContext clientKeyContext = context.getClientKeyContext();
-        SocketChannel channel = SelectionKeyUtils.getSocketChannel(key);
+        if (!hostKeyContext.getKey().isConnectable()) {
+          return WAIT_FOR_CONNECTION;
+        }
+        SocketChannel channel = SelectionKeyUtils.getSocketChannel(hostKeyContext.getKey());
         try {
           channel.finishConnect();
         } catch (IOException e) {
-          LOGGER.error("Host channel <{}> failed to connect.", e);
+          LOGGER.error("Host channel <{}> failed to connect, reason: {}.",
+                       hostKeyContext.getName(), e.getMessage(), e);
+          clientKeyContext.closeIO();
           hostKeyContext.closeIO();
           return WAIT_FOR_CONNECTION;
         }
-        /**
-         * No need to check whether client IO state, since all these will be handled in bridging state
-         */
         hostKeyContext.setConnectState(true);
-        key.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
-        if (context.isHttps() && !clientKeyContext.isIOClosed()) {
+        hostKeyContext.getKey().interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        clientKeyContext.getKey().interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        if (context.isHttps()) {
           context.getBuffer()
                  .getDownstream()
                  .put("HTTP/1.1 200 Connection Established\r\n\r\n".getBytes());
-          SelectionKeyUtils.addInterestOps(context.getClientKey(), SelectionKey.OP_WRITE);
         }
         return BRIDGING;
       }
     },
     BRIDGING {
       @Override
-      public HandlerState perform(ShareContext context, SelectionKey key) {
-        SocketChannel channel = SelectionKeyUtils.getSocketChannel(key);
+      public HandlerState perform(ShareContext context) {
         SelectionKeyContext hostKeyContext = context.getHostKeyContext();
         SelectionKeyContext clientKeyContext = context.getClientKeyContext();
+        SelectionKey key = hostKeyContext.getKey();
+        SocketChannel channel = SelectionKeyUtils.getSocketChannel(key);
         /**
          * Client < -- OS -- [Proxy <-- IS -- Host]
          */
         if (key.isReadable()) {
           if (clientKeyContext.isOSClosed()) {
-            LOGGER.debug("Client channel <{}> output stream is closed.",
-                         clientKeyContext.getName());
+            LOGGER.debug("Client socket channel <{}> output stream is closed, so close Host socket channel <{}> input stream",
+                         clientKeyContext.getName(), hostKeyContext.getName());
             hostKeyContext.closeIS();
           } else {
-            if (-1 ==
-                SocketChannelUtils.readFromChannel(channel, context.getBuffer().getDownstream())) {
+            ChannelBuffer downstreamBuffer = context.getBuffer().getDownstream();
+            if (-1 == SocketChannelUtils.readFromChannel(channel, downstreamBuffer)) {
               hostKeyContext.closeIS();
-              if (!clientKeyContext.isOSClosed()) {
-                SelectionKeyUtils.addInterestOps(context.getClientKey(), SelectionKey.OP_WRITE);
-              }
-            } else if (!context.getBuffer().getDownstream().empty() &&
-                       !clientKeyContext.isOSClosed()) {
-              SelectionKeyUtils.addInterestOps(context.getClientKey(), SelectionKey.OP_WRITE);
             }
+            /**
+             * Read Event always trigger output stream to listen on write event
+             */
+            SelectionKeyUtils.addInterestOps(context.getClientKey(), SelectionKey.OP_WRITE);
           }
         }
 
@@ -99,22 +107,28 @@ public class HostSocketChannelHandler implements EventHandler {
          */
         if (key.isWritable()) {
           if (clientKeyContext.isISClosed() && context.getBuffer().getUpstream().empty()) {
-            LOGGER.debug("Client channel <{}> input stream is closed and upstream buffer is empty.",
-                         clientKeyContext.getName());
+            LOGGER.debug("Client channel <{}> input stream is closed and upstream buffer is empty, so close Host socket channel <{}> output stream",
+                         clientKeyContext.getName(), hostKeyContext.getName());
             hostKeyContext.closeOS();
           } else {
-            if (context.getBuffer().getUpstream().empty()) {
+            ChannelBuffer upstreamBuffer = context.getBuffer().getUpstream();
+            if (upstreamBuffer.empty()) {
+              // keep cpu free
               SelectionKeyUtils.removeInterestOps(key, SelectionKey.OP_WRITE);
-            } else if (-1 ==
-                       SocketChannelUtils.writeToChannel(channel,
-                                                         context.getBuffer().getUpstream())) {
+            } else if (-1 == SocketChannelUtils.writeToChannel(channel, upstreamBuffer)) {
               hostKeyContext.closeOS();
+              /**
+               * error on output stream should always immediately terminate its corresponding input stream
+               */
               clientKeyContext.closeIO();
             }
           }
         }
         return BRIDGING;
       }
-    }
+    },
+    ;
+    abstract HandlerState perform(ShareContext context);
   }
+
 }

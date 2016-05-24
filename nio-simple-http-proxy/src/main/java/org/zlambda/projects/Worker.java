@@ -12,7 +12,6 @@ import java.util.Iterator;
 
 public class Worker implements Runnable {
   private static final Logger LOGGER = Common.getSystemLogger();
-      // 1 minute, simple for output active channels
   private final WorkerContext context;
 
   public Worker(WorkerContext context) {

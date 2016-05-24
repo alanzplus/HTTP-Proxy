@@ -7,11 +7,13 @@ public class SystemContext {
   private final BlockingQueue<SocketChannel> clientQueue;
   private final int port;
   private final int numWorkers;
+  private final int channelBufferSize;
 
   private SystemContext(Builder builder) {
     this.clientQueue = builder.clientQueue;
     this.port = builder.port;
     this.numWorkers = builder.numWorkers;
+    this.channelBufferSize = builder.channelBufferSize;
   }
 
   public BlockingQueue<SocketChannel> getClientQueue() {
@@ -26,13 +28,18 @@ public class SystemContext {
     return numWorkers;
   }
 
+  public int getChannelBufferSize() {
+    return channelBufferSize;
+  }
+
   @Override public String toString() {
     return String.format(
-        "[" +
-        "port : %d," +
-        "number of workers: %d" +
-        "]",
-        getPort(), getNumWorkers()
+        "{\n" +
+        "\tport : %d\n" +
+        "\tnumWorkers: %d\n" +
+        "\tchannelBufferSize: %d KB\n"  +
+        "}",
+        getPort(), getNumWorkers(), getChannelBufferSize()
     );
   }
 
@@ -40,6 +47,7 @@ public class SystemContext {
     private BlockingQueue<SocketChannel> clientQueue;
     private int port;
     private int numWorkers;
+    private int channelBufferSize;
 
     public Builder clientQueue(BlockingQueue<SocketChannel> queue) {
       this.clientQueue = queue;
@@ -53,6 +61,11 @@ public class SystemContext {
 
     public Builder numWorkers(int num) {
       this.numWorkers = num;
+      return this;
+    }
+
+    public Builder channleBufferSize(int size) {
+      this.channelBufferSize = size;
       return this;
     }
 

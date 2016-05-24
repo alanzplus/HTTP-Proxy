@@ -73,9 +73,11 @@ public class Dispatcher extends Thread {
           int minNumChannels = Integer.MAX_VALUE;
           WorkerContext targetWorkerContext = null;
           Iterator<WorkerContext> it = workerContextSet.iterator();
+          int totalActives = 0;
           while (it.hasNext()) {
             WorkerContext ct = it.next();
             int num = ct.getNumConnections();
+            totalActives += num;
             if (minNumChannels > num) {
               minNumChannels = num;
               targetWorkerContext = ct;
@@ -85,7 +87,7 @@ public class Dispatcher extends Thread {
           /**
            * approximate stats
            */
-          LOGGER.info("active channels stats <{}>", activeChannelStats);
+          LOGGER.info("total active channels <{}>, stats <{}>", totalActives, activeChannelStats);
           activeChannelStats.clear();
           try {
             synchronized (targetWorkerContext.getWakeupBarrier()) {

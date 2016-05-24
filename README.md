@@ -1,12 +1,13 @@
 Simple Http Forward Proxy
 --
+This project contains Java implementation of HTTP/HTTPS (Tunneling over HTTP) Forward Proxy.
 
-This project contains 3 Java implementation of Http Forward Proxy.
+Requires JDK 1.8 or higher.
 
-Requires JDK 1.8 or higher (Lamda expression is used)
+### N.I.O Based
 
-### NIO Based
-The NIO based implementaion of HTTP Forward Proxy is robust, memory efficient and support high concurrent connections.
+#### overview
+`nio-simple-http-proxy` contains the NIO based implementaion of Forward Proxy, which is robust, memory efficient and support high concurrent connections.
 
 Script to start up the proxy application. For detail configuration of the proxy, please look at the run script.
 
@@ -15,10 +16,4 @@ cd nio-simple-http-proxy
 export JAVA_HOME=path
 ./run.sh
 ```
-
-
-### BIO Based
-[TODO]
-
-### AIO or Netty Based
-[TODO]
+#### TODO

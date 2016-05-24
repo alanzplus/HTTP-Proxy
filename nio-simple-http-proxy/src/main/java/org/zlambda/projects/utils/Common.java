@@ -22,6 +22,9 @@ public enum Common {
   }
 
   public static void close(Closeable closeable, String name) {
+    if (null == closeable) {
+      return;
+    }
     try {
       closeable.close();
     } catch (IOException e) {

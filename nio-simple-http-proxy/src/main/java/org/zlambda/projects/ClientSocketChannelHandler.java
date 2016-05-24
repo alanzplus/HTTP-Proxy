@@ -15,6 +15,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.UnresolvedAddressException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -206,9 +207,10 @@ public class ClientSocketChannelHandler implements EventHandler {
         context.markHttps();
       }
 
+      SocketChannel hostSocketChannel = null;
       try {
         InetSocketAddress inetSocketAddress = constructInetSocketAddress(new URL(uri));
-        SocketChannel hostSocketChannel = SocketChannel.open();
+        hostSocketChannel = SocketChannel.open();
         hostSocketChannel.configureBlocking(false);
         HostSocketChannelHandler handler = new HostSocketChannelHandler(context);
         SelectionKey hostKey = hostSocketChannel.register(key.selector(), SelectionKey.OP_CONNECT,
@@ -225,7 +227,10 @@ public class ClientSocketChannelHandler implements EventHandler {
         LOGGER.error("cannot parse URL <{}>.", uri, e);
       } catch (IOException e) {
         LOGGER.error("cannot create or register host socket channel", e);
+      } catch (UnresolvedAddressException e) {
+        LOGGER.error("cannot resolve address for <{}>.", uri, e);
       }
+      Common.close(hostSocketChannel);
       return false;
     }
 

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.zlambda.projects.buffer.ChannelBuffer;
 import org.zlambda.projects.context.SelectionKeyContext;
 import org.zlambda.projects.context.ShareContext;
+import org.zlambda.projects.context.SystemContext;
 import org.zlambda.projects.utils.Common;
 import org.zlambda.projects.utils.SelectionKeyUtils;
 import org.zlambda.projects.utils.SocketChannelUtils;
@@ -25,24 +26,8 @@ public class HostSocketChannelHandler implements EventHandler {
   @Override
   public void execute(SelectionKey selectionKey) {
     state = state.perform(context);
-    postAction();
-  }
-
-  /**
-   * TODO: refactor
-   */
-  private void postAction() {
-    cleanKeyContext(context.getClientKeyContext());
-    cleanKeyContext(context.getHostKeyContext());
-  }
-
-  private void cleanKeyContext(SelectionKeyContext keyContext) {
-    if (null == keyContext) {
-      return;
-    }
-    if (keyContext.isConnected() && keyContext.isIOClosed()) {
-      keyContext.closeIO();
-    }
+    SelectionKeyContext.cleanup(context.getClientKeyContext());
+    SelectionKeyContext.cleanup(context.getHostKeyContext());
   }
 
   private enum HandlerState {
@@ -72,6 +57,10 @@ public class HostSocketChannelHandler implements EventHandler {
                  .getDownstream()
                  .put("HTTP/1.1 200 Connection Established\r\n\r\n".getBytes());
         }
+        SystemContext.getSystemDebugger().collectChannelPair(
+            clientKeyContext,
+            hostKeyContext
+        );
         return BRIDGING;
       }
     },

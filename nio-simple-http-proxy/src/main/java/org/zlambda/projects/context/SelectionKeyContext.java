@@ -100,10 +100,24 @@ public class SelectionKeyContext {
     try {
       SocketChannel socketChannel = SelectionKeyUtils.getSocketChannel(key);
       socketChannel.close();
+      channelState.setConnectState(false);
       LOGGER.debug("close socket channel <{}>.", name);
     } catch (IOException e) {
       LOGGER.error("failed to close socket channel <{}>", name, e);
     }
+  }
+
+  public void cleanupIO() {
+    if (isConnected() && isIOClosed()) {
+      closeIO();
+    }
+  }
+
+  public static void cleanup(SelectionKeyContext context) {
+    if (null == context) {
+      return;
+    }
+    context.cleanupIO();
   }
 
   public static class Builder {

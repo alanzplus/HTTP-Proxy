@@ -105,6 +105,10 @@ public class Dispatcher extends Thread {
                       .name(SocketChannelUtils.getRemoteAddress(client).toString())
                       .channelState(channelState).build()
               );
+              SystemContext.getSystemDebugger().collectChannelPair(
+                  shareContext.getClientKeyContext(),
+                  null
+              );
             }
           } catch (ClosedChannelException e) {
             LOGGER.error("Failed to register socket channel <{}>, reason {}.",

@@ -33,24 +33,8 @@ public class ClientSocketChannelHandler implements EventHandler {
   @Override
   public void execute(SelectionKey selectionKey) {
     state = state.perform(context);
-    postAction();
-  }
-
-  /**
-   * TODO: refactor
-   */
-  private void postAction() {
-    cleanKeyContext(context.getClientKeyContext());
-    cleanKeyContext(context.getHostKeyContext());
-  }
-
-  private void cleanKeyContext(SelectionKeyContext keyContext) {
-    if (null == keyContext) {
-      return;
-    }
-    if (keyContext.isConnected() && keyContext.isIOClosed()) {
-      keyContext.closeIO();
-    }
+    SelectionKeyContext.cleanup(context.getClientKeyContext());
+    SelectionKeyContext.cleanup(context.getHostKeyContext());
   }
 
   private enum HandlerState {

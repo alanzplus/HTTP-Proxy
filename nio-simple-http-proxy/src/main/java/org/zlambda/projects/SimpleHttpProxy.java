@@ -1,5 +1,6 @@
 package org.zlambda.projects;
 
+import com.google.common.eventbus.EventBus;
 import org.slf4j.Logger;
 import org.zlambda.projects.context.SystemContext;
 import org.zlambda.projects.utils.Common;
@@ -23,17 +24,20 @@ public class SimpleHttpProxy {
          * one for upstream   [Client -> Host]
          * one for downstream [Client <- Host]
          */
-        .channleBufferSize(Integer.parseInt(System.getProperty("channelBufferSize", "10"))) // unit KB, so default is 10KB
+        .channelBufferSize(Integer.parseInt(System.getProperty("channelBufferSize", "10"))) // unit KB, so default is 10KB
+        .startDebugger(Boolean.parseBoolean(System.getProperty("startDebugger", "false")))
         .build();
     LOGGER.info("current system settings:\n{}", systemContext);
     failThenTerminateJVM = Arrays.asList(
         new ConnectionListener(systemContext),
-        new Dispatcher(systemContext)
+        new Dispatcher(systemContext),
+        new DebuggerThread(systemContext)
     );
   }
 
   public void start() {
     failThenTerminateJVM.forEach(Thread::start);
+    EventBus eventBus = new EventBus();
   }
 
   public static void main(String[] args) {

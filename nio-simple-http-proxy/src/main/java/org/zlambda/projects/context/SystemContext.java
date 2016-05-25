@@ -120,6 +120,8 @@ public class SystemContext {
 
   /**
    * Current implementation is not thread-safe...but it is enough to use inside the Intellij Debug Mode
+   *
+   * TODO: re-implement it and make it thread-safe, and pretty print client <-> host connection
    */
   private static class DebuggerImpl implements Debugger {
     private final Object channelMapMonitor = new Object();

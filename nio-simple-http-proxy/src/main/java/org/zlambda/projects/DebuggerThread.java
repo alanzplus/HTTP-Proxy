@@ -18,10 +18,15 @@ public class DebuggerThread extends Thread {
     }
     while (true) {
       try {
-        Thread.currentThread().sleep(500);
-        Debugger systemDebugger = SystemContext.getSystemDebugger();
-        systemDebugger.hashCode();
-      } catch (Exception e) {}
+        /**
+         * TODO: need to fix NPE
+         */
+        Thread.currentThread().sleep(20000);
+        SystemContext.getSystemDebugger().cleanupClosedChannelPair();
+        LOGGER.info("{}", SystemContext.getSystemDebugger().dumpCurrentChannelStats());
+      } catch (Exception e) {
+        LOGGER.error("Debugger failed.", e);
+      }
     }
   }
 }

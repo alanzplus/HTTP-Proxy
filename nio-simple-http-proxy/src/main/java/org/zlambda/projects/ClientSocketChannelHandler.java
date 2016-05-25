@@ -171,7 +171,11 @@ public class ClientSocketChannelHandler implements EventHandler {
       Scanner scanner = new Scanner(inputStream, "utf-8");
       List<String> ret = new ArrayList<>();
       while (scanner.hasNextLine()) {
-        ret.add(scanner.nextLine());
+        String line = scanner.nextLine();
+        ret.add(line);
+        if (line.equals("")) {
+          break;
+        }
       }
       if (ret.isEmpty() || !ret.get(ret.size() - 1).equals("")) {
         return Optional.empty();

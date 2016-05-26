@@ -87,7 +87,7 @@ public class Dispatcher extends Thread {
           /**
            * approximate stats
            */
-          LOGGER.info("total active channels <{}>, stats <{}>", totalActives, activeChannelStats);
+          LOGGER.info("approximate total active channels <{}>, stats <{}>", totalActives, activeChannelStats);
           activeChannelStats.clear();
           try {
             synchronized (targetWorkerContext.getWakeupBarrier()) {

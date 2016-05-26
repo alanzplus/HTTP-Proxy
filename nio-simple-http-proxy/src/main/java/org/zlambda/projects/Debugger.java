@@ -4,6 +4,5 @@ import org.zlambda.projects.context.SelectionKeyContext;
 
 public interface Debugger {
   void collectChannelPair(SelectionKeyContext client, SelectionKeyContext host);
-  String dumpCurrentChannelStats();
-  void cleanupClosedChannelPair();
+  String cleanThenDumpActiveChannels();
 }

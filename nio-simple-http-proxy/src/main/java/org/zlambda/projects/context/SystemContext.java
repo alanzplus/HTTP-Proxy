@@ -108,28 +108,21 @@ public class SystemContext {
 
     }
 
-    @Override public String dumpCurrentChannelStats() {
-      return null;
-    }
-
-    @Override public void cleanupClosedChannelPair() {
-
+    @Override public String cleanThenDumpActiveChannels() {
+      return "";
     }
   }
 
 
-  /**
-   * Current implementation is not thread-safe...but it is enough to use inside the Intellij Debug Mode
-   *
-   * TODO: re-implement it and make it thread-safe, and pretty print client <-> host connection
-   */
   private static class DebuggerImpl implements Debugger {
     private final Object channelMapMonitor = new Object();
     private final Map<SelectionKeyContext, SelectionKeyContext> CHANNEL_STATS = new HashMap<>();
-    private final SelectionKeyContext dummyContext = new SelectionKeyContext.Builder(null).build();
+    private final SelectionKeyContext dummyContext = new SelectionKeyContext
+        .Builder(null)
+        .channelState(new SelectionKeyContext.ChannelState().setConnectState(false))
+        .build();
 
-    public DebuggerImpl() {
-    }
+    public DebuggerImpl() {}
 
     @Override public void collectChannelPair(SelectionKeyContext client, SelectionKeyContext host) {
       synchronized (channelMapMonitor) {
@@ -137,36 +130,31 @@ public class SystemContext {
       }
     }
 
-    @Override
-    public String dumpCurrentChannelStats() {
+    /**
+     * This method can always dump the latest state of the channel, because the "toString" method
+     * of socketChannel has internal locking !
+     */
+    @Override public String cleanThenDumpActiveChannels() {
       StringBuilder sb = new StringBuilder();
-      synchronized (channelMapMonitor) {
-        CHANNEL_STATS.forEach((client, host) -> {
-          sb.append(String.format(
-              "[%s] -> [%s]\n",
-              SelectionKeyUtils.getSocketChannel(client.getKey()),
-              null == host ? "not register" : SelectionKeyUtils.getSocketChannel(host.getKey())
-          ));
-        });
-      }
-      return sb.toString();
-    }
-
-    @Override
-    public void cleanupClosedChannelPair() {
       synchronized (channelMapMonitor) {
         Iterator<Map.Entry<SelectionKeyContext, SelectionKeyContext>> iterator =
             CHANNEL_STATS.entrySet().iterator();
         while (iterator.hasNext()) {
           Map.Entry<SelectionKeyContext, SelectionKeyContext> next = iterator.next();
-          SelectionKeyContext client = next.getKey();
-          SelectionKeyContext host = next.getValue();
-          if (!SelectionKeyUtils.getSocketChannel(client.getKey()).isOpen()
-              && (dummyContext == host || !SelectionKeyUtils.getSocketChannel(host.getKey()).isOpen())) {
+          SelectionKeyContext clientKeyContext = next.getKey();
+          SelectionKeyContext hostKeyContext = next.getValue();
+          if (clientKeyContext.isIOClosed() && hostKeyContext.isIOClosed()) {
             iterator.remove();
+          } else {
+            String line = String.format(
+                "%s -> %s\n", SelectionKeyUtils.getSocketChannel(clientKeyContext.getKey()),
+                dummyContext.equals(hostKeyContext) ? "un-register" :
+                SelectionKeyUtils.getSocketChannel(hostKeyContext.getKey()));
+            sb.append(line.replaceAll("java\\.nio\\.channels\\.SocketChannel", ""));
           }
         }
       }
+      return sb.toString();
     }
   }
 }

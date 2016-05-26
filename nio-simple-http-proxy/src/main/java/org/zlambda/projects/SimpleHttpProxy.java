@@ -1,6 +1,5 @@
 package org.zlambda.projects;
 
-import com.google.common.eventbus.EventBus;
 import org.slf4j.Logger;
 import org.zlambda.projects.context.SystemContext;
 import org.zlambda.projects.utils.Common;
@@ -37,7 +36,6 @@ public class SimpleHttpProxy {
 
   public void start() {
     failThenTerminateJVM.forEach(Thread::start);
-    EventBus eventBus = new EventBus();
   }
 
   public static void main(String[] args) {

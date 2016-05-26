@@ -7,6 +7,7 @@ import org.zlambda.projects.utils.Common;
 public class DebuggerThread extends Thread {
   private static final Logger LOGGER = Common.getSystemLogger();
   private final SystemContext context;
+  private final int _30_SECONDS = 30 * 1000;
 
   public DebuggerThread(SystemContext context) {
     this.context = context;
@@ -19,11 +20,12 @@ public class DebuggerThread extends Thread {
     while (true) {
       try {
         /**
-         * TODO: need to fix NPE
+         * Since the aim here just for monitoring if there is some unreleased channels after some time
+         * so setting the dump period to 30 seconds seems enough.
          */
-        Thread.currentThread().sleep(20000);
-        SystemContext.getSystemDebugger().cleanupClosedChannelPair();
-        LOGGER.info("{}", SystemContext.getSystemDebugger().dumpCurrentChannelStats());
+        Thread.currentThread().sleep(_30_SECONDS);
+        LOGGER.info("active channels \n{}",
+                    SystemContext.getSystemDebugger().cleanThenDumpActiveChannels());
       } catch (Exception e) {
         LOGGER.error("Debugger failed.", e);
       }

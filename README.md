@@ -17,3 +17,10 @@ export JAVA_HOME=path
 ./run.sh
 ```
 #### TODO
+
+##### Use direct byte buffer
+
+* most of time, we don't need to process the buffer data, what we do just read from socket channel and write to another socket channel, so there is no need to copy it into the heap space
+* Allocation and deallocation of direct bytebuffer are so more expensive than the heap-resident buffer, so it may be good to create a directy buffer pool
+
+##### Add a thread to monitor the active channels or unreleased channels

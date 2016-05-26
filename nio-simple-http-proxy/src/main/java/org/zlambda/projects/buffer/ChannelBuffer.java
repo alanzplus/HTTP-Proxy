@@ -48,5 +48,7 @@ public interface ChannelBuffer {
   boolean empty();
 
   void clear();
+
+  void free();
 }
 

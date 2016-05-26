@@ -5,12 +5,15 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
-public class SimpleChannelBuffer implements ChannelBuffer {
-  private static final int KB = 1024;
+public class DirectChannelBuffer implements ChannelBuffer {
   private final ByteBuffer internal;
+  private boolean isFree = false;
+  private final DirectBufferPool pool;
 
-  public SimpleChannelBuffer(int size) {
-    this.internal = ByteBuffer.allocate(size * KB);
+  public DirectChannelBuffer(DirectBufferPool bufferPool) {
+    this.isFree = false;
+    this.pool = bufferPool;
+    this.internal = bufferPool.take();
   }
 
   /**
@@ -47,20 +50,40 @@ public class SimpleChannelBuffer implements ChannelBuffer {
    * Invariant: @{code internal}'s state should not be modified
    */
   @Override public InputStream toViewInputStream() {
-    return new InputStream() {
-      int limit = internal.position();
-      int i = 0;
+    return new IncrementalInputStream(internal.asReadOnlyBuffer());
+  }
 
-      @Override
-      public int read() throws IOException {
-        if (i < limit) {
-          return internal.array()[i++];
-        } else {
+  /**
+   * this input stream will not read everything in the byte buffer
+   * into the on heap cache. Instead, it will read it CACHE_SIZE each time
+   * when there is not enough data in the on heap cache.
+   */
+  private static class IncrementalInputStream extends InputStream {
+    private static int CACHE_SIZE = 1024;
+    private final byte[] onHeapCache = new byte[CACHE_SIZE];
+    private final ByteBuffer byteBuffer;
+    private int currentLimit;
+    private int i;
+    IncrementalInputStream(ByteBuffer readOnlyByteBuffer) {
+      readOnlyByteBuffer.flip();
+      this.byteBuffer = readOnlyByteBuffer;
+      this.currentLimit = 0;
+      this.i = 0;
+    }
+
+    @Override public int read() throws IOException {
+      if (i == currentLimit) {
+        this.currentLimit = Math.min(byteBuffer.remaining(), CACHE_SIZE);
+        if (currentLimit == 0) {
           return -1;
         }
+        byteBuffer.get(onHeapCache, 0, currentLimit);
+        i = 0;
       }
-    };
+      return onHeapCache[i++];
+    }
   }
+
 
   /**
    * Invariant:
@@ -81,6 +104,8 @@ public class SimpleChannelBuffer implements ChannelBuffer {
   }
 
   @Override public void free() {
+    if (!isFree) {
+      pool.release(internal);
+    }
   }
 }
-

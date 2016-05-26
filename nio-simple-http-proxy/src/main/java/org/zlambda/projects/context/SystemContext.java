@@ -1,37 +1,53 @@
 package org.zlambda.projects.context;
 
-import org.zlambda.projects.Debugger;
-import org.zlambda.projects.utils.SelectionKeyUtils;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import org.zlambda.projects.buffer.ChannelBuffer;
+import org.zlambda.projects.buffer.ChannelBufferPool;
+import org.zlambda.projects.buffer.DirectChannelBufferPool;
+import org.zlambda.projects.buffer.HeapChannelBufferPool;
+import org.zlambda.projects.utils.JsonUtils;
 
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
+/**
+ * Thread Safe Class
+ */
 public class SystemContext {
-  private static volatile Debugger DEBUGGER;
+  @JsonIgnore
   private final BlockingQueue<SocketChannel> clientQueue;
+  @JsonIgnore
+  private final ChannelBufferPool<ChannelBuffer> bufferPool;
   private final int port;
   private final int numWorkers;
-  private final int channelBufferSize;
-  private final boolean startDebugger;
+  private final boolean enableMonitor;
+  private final boolean useDirectBuffer;
+  private final int minBuffers;
+  private final int maxBuffers;
+  private final int bufferSize;
+  private final int monitorUpdateInterval;
 
   private SystemContext(Builder builder) {
     this.clientQueue = builder.clientQueue;
     this.port = builder.port;
     this.numWorkers = builder.numWorkers;
-    this.channelBufferSize = builder.channelBufferSize;
-    this.startDebugger = builder.startDebugger;
-    initGlobalDebugger();
+    this.enableMonitor = builder.enableMonitor;
+    this.maxBuffers = builder.maxBuffers;
+    this.minBuffers = builder.minBuffers;
+    this.bufferSize = builder.bufferSize;
+    this.useDirectBuffer = builder.useDirectBuffer;
+    this.monitorUpdateInterval = builder.monitorUpdateInterval;
+    this.bufferPool = createBufferPoll();
   }
 
-  private void initGlobalDebugger() {
-    DEBUGGER = this.startDebugger ? new DebuggerImpl() : new DummyDebugger();
+  private ChannelBufferPool<ChannelBuffer> createBufferPoll() {
+    return useDirectBuffer ? new DirectChannelBufferPool(minBuffers, maxBuffers, bufferSize) :
+        new HeapChannelBufferPool(bufferSize);
   }
 
-  public static Debugger getSystemDebugger() {
-    return DEBUGGER;
+  public ChannelBufferPool<ChannelBuffer> getBufferPool() {
+    return bufferPool;
   }
 
   public BlockingQueue<SocketChannel> getClientQueue() {
@@ -46,32 +62,37 @@ public class SystemContext {
     return numWorkers;
   }
 
-  public int getChannelBufferSize() {
-    return channelBufferSize;
+  public boolean enableMonitor() {
+    return enableMonitor;
   }
 
-  public boolean isStartDebugger() {
-    return startDebugger;
+  public boolean isUseDirectBuffer() {
+    return useDirectBuffer;
   }
 
-  @Override public String toString() {
-    return String.format(
-        "{\n" +
-        "\tport : %d\n" +
-        "\tnumWorkers: %d\n" +
-        "\tchannelBufferSize: %d KB\n"  +
-        "\tstartDebugger: %s\n"  +
-        "}",
-        getPort(), getNumWorkers(), getChannelBufferSize(), startDebugger ? "true" : "false"
-    );
+  public int getMonitorUpdateInterval() {
+    return monitorUpdateInterval;
+  }
+
+  @Override
+  public String toString() {
+    try {
+      return JsonUtils.serialize(this);
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   public static class Builder {
     private BlockingQueue<SocketChannel> clientQueue;
     private int port;
     private int numWorkers;
-    private int channelBufferSize;
-    private boolean startDebugger;
+    private boolean enableMonitor;
+    private boolean useDirectBuffer;
+    private int minBuffers;
+    private int maxBuffers;
+    private int bufferSize;
+    private int monitorUpdateInterval;
 
     public Builder clientQueue(BlockingQueue<SocketChannel> queue) {
       this.clientQueue = queue;
@@ -88,73 +109,38 @@ public class SystemContext {
       return this;
     }
 
-    public Builder channelBufferSize(int size) {
-      this.channelBufferSize = size;
+    public Builder bufferSize(int size) {
+      this.bufferSize = size;
       return this;
     }
 
-    public Builder startDebugger(boolean startDebugger) {
-      this.startDebugger = startDebugger;
+    public Builder enableMonitor(boolean enableMonitor) {
+      this.enableMonitor = enableMonitor;
+      return this;
+    }
+
+    public Builder minBuffers(int minBuffers) {
+      this.minBuffers = minBuffers;
+      return this;
+    }
+
+    public Builder maxBuffers(int maxBuffers) {
+      this.maxBuffers = maxBuffers;
+      return this;
+    }
+
+    public Builder useDirectBuffer(boolean useDirectBuffer) {
+      this.useDirectBuffer = useDirectBuffer;
+      return this;
+    }
+
+    public Builder monitorUpdateInterval(int monitorUpdateInterval) {
+      this.monitorUpdateInterval = monitorUpdateInterval;
       return this;
     }
 
     public SystemContext build() {
       return new SystemContext(this);
-    }
-  }
-
-  private static class DummyDebugger implements Debugger {
-    @Override public void collectChannelPair(SelectionKeyContext client, SelectionKeyContext host) {
-
-    }
-
-    @Override public String cleanThenDumpActiveChannels() {
-      return "";
-    }
-  }
-
-
-  private static class DebuggerImpl implements Debugger {
-    private final Object channelMapMonitor = new Object();
-    private final Map<SelectionKeyContext, SelectionKeyContext> CHANNEL_STATS = new HashMap<>();
-    private final SelectionKeyContext dummyContext = new SelectionKeyContext
-        .Builder(null)
-        .channelState(new SelectionKeyContext.ChannelState().setConnectState(false))
-        .build();
-
-    public DebuggerImpl() {}
-
-    @Override public void collectChannelPair(SelectionKeyContext client, SelectionKeyContext host) {
-      synchronized (channelMapMonitor) {
-        CHANNEL_STATS.put(client, null == host ? dummyContext : host);
-      }
-    }
-
-    /**
-     * This method can always dump the latest state of the channel, because the "toString" method
-     * of socketChannel has internal locking !
-     */
-    @Override public String cleanThenDumpActiveChannels() {
-      StringBuilder sb = new StringBuilder();
-      synchronized (channelMapMonitor) {
-        Iterator<Map.Entry<SelectionKeyContext, SelectionKeyContext>> iterator =
-            CHANNEL_STATS.entrySet().iterator();
-        while (iterator.hasNext()) {
-          Map.Entry<SelectionKeyContext, SelectionKeyContext> next = iterator.next();
-          SelectionKeyContext clientKeyContext = next.getKey();
-          SelectionKeyContext hostKeyContext = next.getValue();
-          if (clientKeyContext.isIOClosed() && hostKeyContext.isIOClosed()) {
-            iterator.remove();
-          } else {
-            String line = String.format(
-                "%s -> %s\n", SelectionKeyUtils.getSocketChannel(clientKeyContext.getKey()),
-                dummyContext.equals(hostKeyContext) ? "un-register" :
-                SelectionKeyUtils.getSocketChannel(hostKeyContext.getKey()));
-            sb.append(line.replaceAll("java\\.nio\\.channels\\.SocketChannel", ""));
-          }
-        }
-      }
-      return sb.toString();
     }
   }
 }

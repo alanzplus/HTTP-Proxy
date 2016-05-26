@@ -54,7 +54,8 @@ public class WorkerContext {
     private Set<WorkerContext> contextSet;
     private Object contextSetMonitor;
 
-    public Builder() {}
+    public Builder() {
+    }
 
     public Builder selector(Selector selector) {
       this.selector = selector;

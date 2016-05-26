@@ -16,29 +16,35 @@ public class SimpleHttpProxy {
   public SimpleHttpProxy() {
     systemContext = new SystemContext.Builder()
         .clientQueue(new LinkedBlockingQueue<>())
-        .numWorkers(Integer.parseInt(System.getProperty("worker", "4")))
+        .numWorkers(Integer.parseInt(System.getProperty("worker", "8")))
         .port(Integer.parseInt(System.getProperty("port", "9999")))
+        .enableMonitor(Boolean.parseBoolean(System.getProperty("enableMonitor", "true")))
         /**
          * Each proxy connection use 2 channelBufferS,
          * one for upstream   [Client -> Host]
          * one for downstream [Client <- Host]
          */
-        .channelBufferSize(Integer.parseInt(System.getProperty("channelBufferSize", "10"))) // unit KB, so default is 10KB
-        .startDebugger(Boolean.parseBoolean(System.getProperty("startDebugger", "false")))
+        .minBuffers(Integer.parseInt(System.getProperty("minNumBuffers", "100")))
+        .maxBuffers(Integer.parseInt(System.getProperty("maxNumBuffers", "200")))
+        .bufferSize(Integer.parseInt(System.getProperty("bufferSize", "10"))) // unit KB
+        .useDirectBuffer(Boolean.parseBoolean(System.getProperty("useDirectBuffer", "true")))
+        .monitorUpdateInterval(Integer.parseInt(System.getProperty("monitorUpdateInterval", "30"))) // second
         .build();
+
     LOGGER.info("current system settings:\n{}", systemContext);
+    MonitorSingleton.init(systemContext);
     failThenTerminateJVM = Arrays.asList(
         new ConnectionListener(systemContext),
         new Dispatcher(systemContext),
-        new DebuggerThread(systemContext)
+        new MonitorThread(systemContext)
     );
-  }
-
-  public void start() {
-    failThenTerminateJVM.forEach(Thread::start);
   }
 
   public static void main(String[] args) {
     new SimpleHttpProxy().start();
+  }
+
+  public void start() {
+    failThenTerminateJVM.forEach(Thread::start);
   }
 }

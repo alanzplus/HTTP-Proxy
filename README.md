@@ -7,7 +7,7 @@ Requires JDK 1.8 or higher.
 ### N.I.O Based
 
 #### overview
-`nio-simple-http-proxy` contains the NIO based implementaion of Forward Proxy, which is robust, memory efficient and support high concurrent connections.
+`nio-simple-http-proxy` contains the NIO based implementation of Forward Proxy, which is robust, memory efficient and support high concurrent connections.
 
 Script to start up the proxy application. For detail configuration of the proxy, please look at the run script.
 
@@ -17,6 +17,18 @@ export JAVA_HOME=path
 ./run.sh
 ```
 #### TODO
+
+##### Refactor the context packages
+
+* Each registered SocketChannel has a SelectionKey
+* Each SelectionKey has a Handler as an attachment
+* Each pair of <client SocketChannel, host SocketChannel> Handlers share the same context, which is called ProxyConnectionContext
+* ProxyConnectionContext
+  * client key, each key is wrapped in a holder with augmented information
+  * host key, each key is wrapped in a holder with augmented information
+  * ProxyConnectionBuffer
+  * any other share information
+
 
 ##### Use direct byte buffer
 

@@ -43,7 +43,7 @@ public class Worker implements Runnable {
           iterator.remove();
         }
       }
-    } catch (Exception e) {
+    } catch (Throwable e) {
       LOGGER.error("got unexpected error. so terminate worker <{}>", context.getName(), e);
       synchronized (context.getContextSetMonitor()) {
         context.getContextSet().remove(context);

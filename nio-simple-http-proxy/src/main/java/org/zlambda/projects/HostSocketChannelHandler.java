@@ -109,7 +109,7 @@ public class HostSocketChannelHandler implements EventHandler {
               /**
                * error on output stream should always immediately terminate its corresponding input stream
                */
-              clientKeyContext.closeIO();
+              clientKeyContext.closeIS();
             }
           }
         }

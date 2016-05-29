@@ -45,6 +45,7 @@ public class MonitorSingleton {
         synchronized (channelMapMonitor) {
           Iterator<Map.Entry<ConnectionContext, ConnectionContext>> iterator =
               CHANNEL_STATS.entrySet().iterator();
+          int activeChannels = 0;
           while (iterator.hasNext()) {
             Map.Entry<ConnectionContext, ConnectionContext> next = iterator.next();
             ConnectionContext client = next.getKey();
@@ -52,16 +53,18 @@ public class MonitorSingleton {
             if (!client.isOpen() && (dummyContext.equals(host) || !host.isOpen())) {
               iterator.remove();
             } else {
+              activeChannels++;
               String line = String.format(
                   "%s -> %s\n", client.getChannel(),
                   dummyContext.equals(host) ? "un-register" : host.getChannel());
               sb.append(line.replaceAll("java\\.nio\\.channels\\.SocketChannel", ""));
             }
           }
+          sb.append("active channels <" + activeChannels + ">\n");
         }
         if (context.isUseDirectBuffer()) {
           DirectChannelBufferPool bufferPool = (DirectChannelBufferPool) context.getBufferPool();
-          sb.append(String.format("un-release buffers %d\n", bufferPool.numUsedBuffers()));
+          sb.append(String.format("un-release buffers <%d>\n", bufferPool.numUsedBuffers()));
         }
         return sb.toString();
       }

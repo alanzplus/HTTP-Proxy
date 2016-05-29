@@ -18,21 +18,4 @@ export JAVA_HOME=path
 ```
 #### TODO
 
-##### Refactor the context packages
-
-* Each registered SocketChannel has a SelectionKey
-* Each SelectionKey has a Handler as an attachment
-* Each pair of <client SocketChannel, host SocketChannel> Handlers share the same context, which is called ProxyConnectionContext
-* ProxyConnectionContext
-  * client key, each key is wrapped in a holder with augmented information
-  * host key, each key is wrapped in a holder with augmented information
-  * ProxyConnectionBuffer
-  * any other share information
-
-
-##### Use direct byte buffer
-
-* most of time, we don't need to process the buffer data, what we do just read from socket channel and write to another socket channel, so there is no need to copy it into the heap space
-* Allocation and deallocation of direct bytebuffer are so more expensive than the heap-resident buffer, so it may be good to create a directy buffer pool
-
-##### Create Galting pefr-test program
+* Create Galting pefr-test program

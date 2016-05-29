@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
+import java.util.regex.Pattern;
 
 public class ClientSocketChannelHandler implements EventHandler {
   private static final Logger LOGGER = Common.getSystemLogger();
@@ -153,14 +154,16 @@ public class ClientSocketChannelHandler implements EventHandler {
       }
     }
 
+    private static final Pattern PROTOCOL_MATCHER = Pattern.compile("^(https|http).*");
+
     private static boolean
     createHostAndRegisterChannel(RequestLine line, ProxyContext context) {
       String uri = line.uri;
       /**
        * Java URL cannot parse uri without protocol
        */
-      if (line.isHttps && !uri.matches("^(https|http).*")) {
-        uri = "http://" + uri;
+      if (line.isHttps && !PROTOCOL_MATCHER.matcher(uri).matches()) {
+        uri = "https://" + uri;
         context.markAsHttps();
       }
 
@@ -197,20 +200,22 @@ public class ClientSocketChannelHandler implements EventHandler {
      * Reference https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html
      */
     private static class RequestLine {
-      final String method;
-      final String uri;
-      final String version;
-      final boolean isHttps;
+      private static final Pattern CONNECT_MATCHER = Pattern.compile("^connect.*", Pattern.CASE_INSENSITIVE);
+      private static final Pattern SPLIT_MATCHER = Pattern.compile("\\s+");
+      private final String method;
+      private final String uri;
+      private final String version;
+      private final boolean isHttps;
 
       private RequestLine(String method, String uri, String version) {
         this.method = method;
         this.uri = uri;
         this.version = version;
-        this.isHttps = method.matches("(?i)connect");
+        this.isHttps = CONNECT_MATCHER.matcher(method).matches();
       }
 
-      static Optional<RequestLine> construct(String requestLine) {
-        String[] split = requestLine.split("\\s+", 3);
+      private static Optional<RequestLine> construct(String requestLine) {
+        String[] split = SPLIT_MATCHER.split(requestLine, 3);
         return (3 == split.length) ? Optional.of(
             new RequestLine(split[0], split[1], split[2])) : Optional.empty();
       }

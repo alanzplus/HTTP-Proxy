@@ -2,11 +2,9 @@ package org.zlambda.projects;
 
 import org.slf4j.Logger;
 import org.zlambda.projects.buffer.ChannelBuffer;
-import org.zlambda.projects.context.SelectionKeyContext;
-import org.zlambda.projects.context.ShareContext;
+import org.zlambda.projects.context.ConnectionContext;
+import org.zlambda.projects.context.ProxyContext;
 import org.zlambda.projects.utils.Common;
-import org.zlambda.projects.utils.SelectionKeyUtils;
-import org.zlambda.projects.utils.SocketChannelUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,48 +18,48 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
+import java.util.regex.Pattern;
 
 public class ClientSocketChannelHandler implements EventHandler {
   private static final Logger LOGGER = Common.getSystemLogger();
+  private final ProxyContext context;
   private HandlerState state = HandlerState.PARSING_INITIAL_REQUEST;
-  private final ShareContext context;
 
-  public ClientSocketChannelHandler(ShareContext context) {
+  public ClientSocketChannelHandler(ProxyContext context) {
     this.context = context;
   }
 
   @Override
   public void execute(SelectionKey selectionKey) {
     state = state.perform(context);
-    SelectionKeyContext.cleanup(context.getClientKeyContext());
-    SelectionKeyContext.cleanup(context.getHostKeyContext());
+    context.cleanup();
   }
 
   private enum HandlerState {
     PARSING_INITIAL_REQUEST {
       @Override
-      public HandlerState perform(ShareContext context) {
-        SelectionKey key = context.getClientKey();
-        if (!key.isReadable()) {
+      public HandlerState perform(ProxyContext context) {
+        ConnectionContext client = context.getClient();
+        if (!client.isReadable()) {
           return PARSING_INITIAL_REQUEST;
         }
-        ChannelBuffer upstreamBuffer = context.getBuffer().getUpstream();
-        SocketChannel channel = SelectionKeyUtils.getSocketChannel(key);
-        if (-1 == SocketChannelUtils.readFromChannel(channel, upstreamBuffer)) {
-          context.getClientKeyContext().closeIO();
+        ChannelBuffer upstreamBuffer = context.getConnectionBuffer().upstream();
+        if (-1 == client.read(upstreamBuffer)) {
+          client.closeIO();
           return PARSING_INITIAL_REQUEST;
         }
         Optional<List<String>> header =
             parseInitialRequestHeader(upstreamBuffer.toViewInputStream());
         if (!header.isPresent()) {
+          LOGGER.debug("<{}> cannot find header", client.getName());
           return PARSING_INITIAL_REQUEST;
         }
         LOGGER.info("got initial request line <{}>.", header.get().get(0));
         Optional<RequestLine> requestLine = RequestLine.construct(header.get().get(0));
         if (!requestLine.isPresent()) {
           LOGGER.error("cannot parse request line, so close client socket channel <{}>",
-                       SocketChannelUtils.getRemoteAddress(channel));
-          context.getClientKeyContext().closeIO();
+                       client.getName());
+          client.closeIO();
           return PARSING_INITIAL_REQUEST;
         }
         /**
@@ -70,14 +68,14 @@ public class ClientSocketChannelHandler implements EventHandler {
         if (requestLine.get().isHttps) {
           upstreamBuffer.clear();
         }
-        if (!createHostAndRegisterChannel(requestLine.get(), key, context)) {
-          context.getClientKeyContext().closeIO();
+        if (!createHostAndRegisterChannel(requestLine.get(), context)) {
+          client.closeIO();
           return PARSING_INITIAL_REQUEST;
         }
         /**
          * Wait Host to be connected
          */
-        SelectionKeyUtils.removeInterestOps(key, SelectionKey.OP_READ);
+        client.unregister(SelectionKey.OP_READ);
         return BRIDGING;
       }
     },
@@ -87,84 +85,56 @@ public class ClientSocketChannelHandler implements EventHandler {
      */
     BRIDGING {
       @Override
-      public HandlerState perform(ShareContext context) {
-        SelectionKey clientKey = context.getClientKey();
-        SocketChannel channel = SelectionKeyUtils.getSocketChannel(clientKey);
-        SelectionKeyContext hostKeyContext = context.getHostKeyContext();
-        SelectionKeyContext clientKeyContext = context.getClientKeyContext();
+      public HandlerState perform(ProxyContext context) {
+        ConnectionContext host = context.getHost();
+        ConnectionContext client = context.getClient();
         /**
          * [Client -- IS --> Proxy] -- OS --> Host
          */
-        if (clientKey.isReadable()) {
-          if (hostKeyContext.isOSClosed()) {
-            LOGGER.debug("Host socket channel <{}> output stream is closed, so close Client socket channel <{}> input stream",
-                hostKeyContext.getName(), clientKeyContext.getName());
-            clientKeyContext.closeIS();
+        if (client.isReadable()) {
+          if (host.isOutputShutdown()) {
+            LOGGER.debug(
+                "Host socket channel <{}> output stream is closed, so close Client socket channel <{}> input stream",
+                host.getName(), client.getName());
+            client.shutdownIS();
           } else {
-            ChannelBuffer upstreamBuffer = context.getBuffer().getUpstream();
-            if (-1 == SocketChannelUtils.readFromChannel(channel, upstreamBuffer)) {
-              clientKeyContext.closeIS();
+            ChannelBuffer upstreamBuffer = context.getConnectionBuffer().upstream();
+            if (-1 == client.read(upstreamBuffer)) {
+              client.shutdownIS();
             }
             /**
              * Read Event always trigger output stream to listen on write event
              */
-            SelectionKeyUtils.addInterestOps(context.getHostKey(), SelectionKey.OP_WRITE);
+            host.register(SelectionKey.OP_WRITE);
           }
         }
 
         /**
          * [Client <-- OS -- Proxy] < -- IS -- Host
          */
-        if (clientKey.isWritable()) {
-          ChannelBuffer downstreamBuffer = context.getBuffer().getDownstream();
-          if (hostKeyContext.isISClosed() && downstreamBuffer.empty()) {
+        if (client.isWritable()) {
+          ChannelBuffer downstreamBuffer = context.getConnectionBuffer().downstream();
+          if (host.isInputShutdown() && downstreamBuffer.empty()) {
             LOGGER.debug(
                 "Host socket channel <{}> input stream is closed and downstream buffer is empty, so close Client <{}> output stream ",
-                hostKeyContext.getName(), clientKeyContext.getName());
-            clientKeyContext.closeOS();
+                host.getName(), client.getName());
+            client.shutdownOS();
           } else {
             if (downstreamBuffer.empty()) {
               // keep cpu free
-              SelectionKeyUtils.removeInterestOps(clientKey, SelectionKey.OP_WRITE);
-            } else if (-1 == SocketChannelUtils.writeToChannel(channel, downstreamBuffer)) {
-              clientKeyContext.closeOS();
+              client.unregister(SelectionKey.OP_WRITE);
+            } else if (-1 == client.write(downstreamBuffer)) {
+              client.shutdownOS();
               /**
                * error on output stream should always immediately terminate its corresponding input stream
                */
-              hostKeyContext.closeIS();
+              host.shutdownIS();
             }
           }
         }
         return BRIDGING;
       }
-    },
-    ;
-
-    abstract HandlerState perform(ShareContext context);
-
-
-    /**
-     * Reference https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html
-     */
-    private static class RequestLine {
-      final String method;
-      final String uri;
-      final String version;
-      final boolean isHttps;
-
-      private RequestLine(String method, String uri, String version) {
-        this.method = method;
-        this.uri = uri;
-        this.version = version;
-        this.isHttps = method.matches("(?i)connect");
-      }
-
-      static Optional<RequestLine> construct(String requestLine) {
-        String[] split = requestLine.split("\\s+", 3);
-        return (3 == split.length) ? Optional.of(
-            new RequestLine(split[0], split[1], split[2])) : Optional.empty();
-      }
-    }
+    },;
 
     private static Optional<List<String>>
     parseInitialRequestHeader(InputStream inputStream) {
@@ -184,15 +154,17 @@ public class ClientSocketChannelHandler implements EventHandler {
       }
     }
 
+    private static final Pattern PROTOCOL_MATCHER = Pattern.compile("^(https|http).*");
+
     private static boolean
-    createHostAndRegisterChannel(RequestLine line, SelectionKey key, ShareContext context) {
+    createHostAndRegisterChannel(RequestLine line, ProxyContext context) {
       String uri = line.uri;
       /**
        * Java URL cannot parse uri without protocol
        */
-      if (line.isHttps && !uri.matches("^(https|http).*")) {
-        uri = "http://" + uri;
-        context.markHttps();
+      if (line.isHttps && !PROTOCOL_MATCHER.matcher(uri).matches()) {
+        uri = "https://" + uri;
+        context.markAsHttps();
       }
 
       SocketChannel hostSocketChannel = null;
@@ -201,14 +173,9 @@ public class ClientSocketChannelHandler implements EventHandler {
         hostSocketChannel = SocketChannel.open();
         hostSocketChannel.configureBlocking(false);
         HostSocketChannelHandler handler = new HostSocketChannelHandler(context);
-        SelectionKey hostKey = hostSocketChannel.register(key.selector(), SelectionKey.OP_CONNECT,
-                                                          handler);
-        SelectionKeyContext hostKeyContext = new SelectionKeyContext
-            .Builder(hostKey)
-            .name(inetSocketAddress.toString())
-            .channelState(new SelectionKeyContext.ChannelState().setConnectState(false))
-            .build();
-        context.setHostKey(hostKey, hostKeyContext);
+        SelectionKey hostKey = hostSocketChannel.register(
+            context.selector(), SelectionKey.OP_CONNECT, handler);
+        context.setHost(new ConnectionContext(hostKey, inetSocketAddress.toString()));
         hostSocketChannel.connect(inetSocketAddress);
         return true;
       } catch (MalformedURLException e) {
@@ -225,6 +192,33 @@ public class ClientSocketChannelHandler implements EventHandler {
     private static InetSocketAddress constructInetSocketAddress(URL url) {
       int port = url.getPort() == -1 ? url.getDefaultPort() : url.getPort();
       return new InetSocketAddress(url.getHost(), port);
+    }
+
+    abstract HandlerState perform(ProxyContext context);
+
+    /**
+     * Reference https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html
+     */
+    private static class RequestLine {
+      private static final Pattern CONNECT_MATCHER = Pattern.compile("^connect.*", Pattern.CASE_INSENSITIVE);
+      private static final Pattern SPLIT_MATCHER = Pattern.compile("\\s+");
+      private final String method;
+      private final String uri;
+      private final String version;
+      private final boolean isHttps;
+
+      private RequestLine(String method, String uri, String version) {
+        this.method = method;
+        this.uri = uri;
+        this.version = version;
+        this.isHttps = CONNECT_MATCHER.matcher(method).matches();
+      }
+
+      private static Optional<RequestLine> construct(String requestLine) {
+        String[] split = SPLIT_MATCHER.split(requestLine, 3);
+        return (3 == split.length) ? Optional.of(
+            new RequestLine(split[0], split[1], split[2])) : Optional.empty();
+      }
     }
   }
 

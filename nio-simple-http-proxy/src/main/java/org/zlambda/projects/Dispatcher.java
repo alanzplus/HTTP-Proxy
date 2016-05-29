@@ -1,12 +1,12 @@
 package org.zlambda.projects;
 
 import org.slf4j.Logger;
-import org.zlambda.projects.buffer.ProxyConnectionBuffer;
-import org.zlambda.projects.context.SelectionKeyContext;
-import org.zlambda.projects.context.ShareContext;
+import org.zlambda.projects.context.ConnectionContext;
+import org.zlambda.projects.context.ProxyContext;
 import org.zlambda.projects.context.SystemContext;
 import org.zlambda.projects.context.WorkerContext;
 import org.zlambda.projects.utils.Common;
+import org.zlambda.projects.utils.SelectionKeyUtils;
 import org.zlambda.projects.utils.SocketChannelUtils;
 
 import java.nio.channels.ClosedChannelException;
@@ -48,7 +48,8 @@ public class Dispatcher extends Thread {
     executorService.submit(new Worker(context));
   }
 
-  @Override public void run() {
+  @Override
+  public void run() {
     LOGGER.info("{} thread started", getName());
     try {
       List<String> activeChannelStats = new ArrayList<>();
@@ -56,6 +57,7 @@ public class Dispatcher extends Thread {
         SocketChannel client;
         try {
           client = systemContext.getClientQueue().take();
+          LOGGER.info("got client connection {}", client);
         } catch (InterruptedException e) {
           LOGGER.error("got interruptedException while taking clientQueue.", e);
           Thread.currentThread().interrupt();
@@ -85,28 +87,22 @@ public class Dispatcher extends Thread {
             activeChannelStats.add(String.format("[%s:%d]", ct.getName(), num));
           }
           /**
-           * approximate stats
+           * approximate statds
            */
-          LOGGER.info("approximate total active channels <{}>, stats <{}>", totalActives, activeChannelStats);
+          LOGGER.info("approximate total active channels <{}>, stats <{}>", totalActives,
+                      activeChannelStats);
           activeChannelStats.clear();
           try {
             synchronized (targetWorkerContext.getWakeupBarrier()) {
               targetWorkerContext.getSelector().wakeup();
-              ShareContext shareContext = new ShareContext(
-                  new ProxyConnectionBuffer(systemContext.getChannelBufferSize()));
-              ClientSocketChannelHandler handler = new ClientSocketChannelHandler(shareContext);
+              ProxyContext proxyContext = new ProxyContext(systemContext);
               SelectionKey key = client.register(
-                  targetWorkerContext.getSelector(), SelectionKey.OP_READ, handler);
-              SelectionKeyContext.ChannelState channelState =
-                  new SelectionKeyContext.ChannelState().setConnectState(true);
-              shareContext.setClientKey(
-                  key,
-                  new SelectionKeyContext.Builder(key)
-                      .name(SocketChannelUtils.getRemoteAddress(client).toString())
-                      .channelState(channelState).build()
-              );
-              SystemContext.getSystemDebugger().collectChannelPair(
-                  shareContext.getClientKeyContext(),
+                  targetWorkerContext.getSelector(),
+                  SelectionKey.OP_READ,
+                  new ClientSocketChannelHandler(proxyContext));
+              proxyContext.setClient(new ConnectionContext(key, SelectionKeyUtils.getName(key)));
+              MonitorSingleton.get().collectChannelPair(
+                  proxyContext.getClient(),
                   null
               );
             }

@@ -3,12 +3,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.zlambda.projects</groupId>
-    <artifactId>simple-http-proxy</artifactId>
+    <artifactId>http-proxy</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <modules>
-      <module>nio-simple-http-proxy</module>
+      <module>nio-http-proxy</module>
     </modules>
 
     <dependencyManagement>

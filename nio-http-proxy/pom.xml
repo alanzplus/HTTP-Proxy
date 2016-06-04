@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.zlambda.projects</groupId>
-    <artifactId>nio-simple-http-proxy</artifactId>
+    <artifactId>nio-http-proxy</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 

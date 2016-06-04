@@ -19,7 +19,7 @@ export JAVA_HOME=path_to_java8
 ./run.sh
 ```
 
-#### Configuration
+#### configuration
 
 Here is list of proxy configurations. To change the configuration, simple modify the `run.sh`.
 

@@ -73,7 +73,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>org.zlambda.projects.SimpleHttpProxy</mainClass>
+                            <mainClass>org.zlambda.projects.NIOHttpProxy</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

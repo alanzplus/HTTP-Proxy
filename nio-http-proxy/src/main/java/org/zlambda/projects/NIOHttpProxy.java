@@ -8,12 +8,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class SimpleHttpProxy {
+public class NIOHttpProxy {
   private static final Logger LOGGER = Common.getSystemLogger();
   private final SystemContext systemContext;
   private final List<Thread> failThenTerminateJVM;
 
-  public SimpleHttpProxy() {
+  public NIOHttpProxy() {
     systemContext = new SystemContext.Builder()
         .clientQueue(new LinkedBlockingQueue<>())
         .numWorkers(Integer.parseInt(System.getProperty("worker", "8")))
@@ -41,7 +41,7 @@ public class SimpleHttpProxy {
   }
 
   public static void main(String[] args) {
-    new SimpleHttpProxy().start();
+    new NIOHttpProxy().start();
   }
 
   public void start() {

@@ -2,7 +2,7 @@ package org.zlambda.projects.utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zlambda.projects.SimpleHttpProxy;
+import org.zlambda.projects.NIOHttpProxy;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -10,7 +10,7 @@ import java.io.IOException;
 public enum Common {
   ;
 
-  private static final Logger systemLogger = LoggerFactory.getLogger(SimpleHttpProxy.class);
+  private static final Logger systemLogger = LoggerFactory.getLogger(NIOHttpProxy.class);
 
   public static Logger getSystemLogger() {
     return systemLogger;

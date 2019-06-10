@@ -49,10 +49,3 @@ The proxy application, by default, uses a off-heap buffer pool. When it is disab
 -DmaxNumBuffers=200
 -DbufferSize=10 # unit KB, each client <-> proxy <-> host connection use two buffers
 ```
-
-#### TODO
-* use yaml or json for proxy configuration instead of the java options
-* support HTTP traffic rewrite using a plugin-like way
-  * no need to modify the original source code
-  * the rewrite class just need to implement an interface and configure the proxy to use it
-* Create Galting pefr-test program

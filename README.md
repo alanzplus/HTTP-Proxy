@@ -10,18 +10,23 @@ Requires JDK 1.8 or higher.
 `nio-http-proxy` contains the NIO based implementation of HTTP/HTTPS Forward Proxy, which is robust and cpu-memory efficient.
 
 #### quick start
-
-`run.sh` will automatically compile, package and start the proxy.
+This repo comes with urbar jar stored in `bin/lib/nio-http-roxy.jar` so you can run the proxy by simply
 
 ```bash
-cd nio-http-proxy
-export JAVA_HOME=path_to_java8
-./run.sh
+JAVA_HOME=${path_to_java8} \
+  ./bin/run-nio-http-proxy.sh
+```
+
+You can also rebuild and run
+
+```
+JAVA_HOME=${path_to_java8} \
+  ./bin/run-nio-http-proxy.sh rebuild
 ```
 
 #### configuration
 
-Here is list of proxy configurations. To change the configuration, simple modify the `run.sh`.
+Here is list of proxy configurations. To change the configuration, simple modify the `./bin/run-nio-http-proxy.sh`.
 
 ##### basic
 
